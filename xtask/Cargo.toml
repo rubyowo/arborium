@@ -24,6 +24,8 @@ rootcause = "0.10"
 tiny_http = "0.12"
 indicatif = "0.17"
 owo-colors = "4"
+phf = { version = "0.13", default-features = false }
+phf_codegen = "0.13"
 rayon = "1.10"
 tempfile = "3"
 regex = "1"

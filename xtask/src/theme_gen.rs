@@ -12,6 +12,7 @@ use crate::highlight_gen::{self, Highlights, NamedHighlight};
 use camino::Utf8Path;
 use fs_err as fs;
 use owo_colors::OwoColorize;
+use phf_codegen::Map;
 use std::collections::HashMap;
 use std::fmt::Write;
 
@@ -595,6 +596,17 @@ pub fn generate_theme_code(crates_dir: &Utf8Path) -> Result<(), String> {
     }
     writeln!(code, "    ]").unwrap();
     writeln!(code, "}}").unwrap();
+
+    let mut themes_hashmap: Map<String> = phf_codegen::Map::new();
+    for def in &themes {
+        themes_hashmap.entry(def.fn_name.clone(), &def.fn_name);
+    }
+    writeln!(
+        code,
+        "pub const THEMES: phf::Map<&'static str, fn() -> Theme> = {};",
+        themes_hashmap.build()
+    )
+    .unwrap();
 
     // Write the file
     fs::write(&output_path, &code).map_err(|e| format!("Failed to write output: {e}"))?;

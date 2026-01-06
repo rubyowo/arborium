@@ -17,6 +17,7 @@ include = ["src/**/*.rs", "themes/**/*.toml"]
 
 [dependencies]
 toml = { version = "0.8", optional = true }
+phf = { version = "0.13", default-features = false }
 
 [features]
 default = []
