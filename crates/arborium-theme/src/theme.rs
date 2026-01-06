@@ -311,106 +311,82 @@ impl Theme {
         Ok(theme)
     }
 
-    /// Generate CSS for this theme.
-    ///
-    /// Uses CSS nesting for compact output. The selector_prefix is prepended
-    /// to scope the rules (e.g., `[data-theme="mocha"]`).
-    pub fn to_css(&self, selector_prefix: &str) -> String {
-        use crate::highlights::HIGHLIGHTS;
-        use std::collections::HashMap;
+/// Generate CSS variables for this theme.
+///
+/// Emits `--arb-*-light` or `--arb-*-dark` variables scoped under
+/// `selector_prefix` (e.g. `[data-theme="mocha"]`).
+pub fn to_css(&self, selector_prefix: &str) -> String {
+    use crate::highlights::HIGHLIGHTS;
+    use std::collections::HashMap;
+    use std::fmt::Write;
 
-        let mut css = String::new();
+    let mut css = String::new();
+    let variant = if self.is_dark { "dark" } else { "light" };
 
-        writeln!(css, "{selector_prefix} {{").unwrap();
+    writeln!(css, "{selector_prefix} {{").unwrap();
 
-        // Background and foreground
-        if let Some(bg) = &self.background {
-            writeln!(css, "  background: {};", bg.to_hex()).unwrap();
-            writeln!(css, "  --bg: {};", bg.to_hex()).unwrap();
-            // Surface is background adjusted toward opposite (lighter for dark, darker for light)
-            let surface = if self.is_dark {
-                bg.lighten(0.08)
-            } else {
-                bg.darken(0.05)
-            };
-            writeln!(css, "  --surface: {};", surface.to_hex()).unwrap();
+    // Build a map from tag -> style for parent lookups
+    let mut tag_to_style: HashMap<&str, &Style> = HashMap::new();
+    for (i, def) in HIGHLIGHTS.iter().enumerate() {
+        if !def.tag.is_empty() && !self.styles[i].is_empty() {
+            tag_to_style.insert(def.tag, &self.styles[i]);
         }
-        if let Some(fg) = &self.foreground {
-            writeln!(css, "  color: {};", fg.to_hex()).unwrap();
-            writeln!(css, "  --fg: {};", fg.to_hex()).unwrap();
-        }
+    }
 
-        // Find indices for accent and muted colors
-        let function_idx = HIGHLIGHTS.iter().position(|h| h.name == "function");
-        let keyword_idx = HIGHLIGHTS.iter().position(|h| h.name == "keyword");
-        let comment_idx = HIGHLIGHTS.iter().position(|h| h.name == "comment");
-
-        // --accent: use function color, fallback to keyword, fallback to foreground
-        let accent_color = function_idx
-            .and_then(|i| self.styles[i].fg.as_ref())
-            .or_else(|| keyword_idx.and_then(|i| self.styles[i].fg.as_ref()))
-            .or(self.foreground.as_ref());
-        if let Some(accent) = accent_color {
-            writeln!(css, "  --accent: {};", accent.to_hex()).unwrap();
+    // Generate CSS variables for each highlight category
+    for (i, def) in HIGHLIGHTS.iter().enumerate() {
+        if def.tag.is_empty() {
+            continue;
         }
 
-        // --muted: use comment color, fallback to faded foreground
-        let muted_color = comment_idx.and_then(|i| self.styles[i].fg.as_ref());
-        if let Some(muted) = muted_color {
-            writeln!(css, "  --muted: {};", muted.to_hex()).unwrap();
-        } else if let Some(fg) = &self.foreground {
-            let muted = if self.is_dark {
-                fg.darken(0.3)
-            } else {
-                fg.lighten(0.3)
-            };
-            writeln!(css, "  --muted: {};", muted.to_hex()).unwrap();
+        // Use own style, or fall back to parent style
+        let style = if !self.styles[i].is_empty() {
+            &self.styles[i]
+        } else if !def.parent_tag.is_empty() {
+            match tag_to_style.get(def.parent_tag) {
+                Some(parent) => *parent,
+                None => continue,
+            }
+        } else {
+            continue;
+        };
+
+        if style.is_empty() {
+            continue;
         }
 
-        // Build a map from tag -> style for parent lookups
-        let mut tag_to_style: HashMap<&str, &Style> = HashMap::new();
-        for (i, def) in HIGHLIGHTS.iter().enumerate() {
-            if !def.tag.is_empty() && !self.styles[i].is_empty() {
-                tag_to_style.insert(def.tag, &self.styles[i]);
-            }
+        if let Some(fg) = &style.fg {
+            writeln!(
+                css,
+                "  --arb-{}-{}: {};",
+                def.tag,
+                variant,
+                fg.to_hex()
+            )
+            .unwrap();
         }
 
-        // Generate rules for each highlight category
-        // Track emitted tags to avoid duplicates (multiple HIGHLIGHTS can share the same tag)
-        let mut emitted_tags: std::collections::HashSet<&str> = std::collections::HashSet::new();
-        for (i, def) in HIGHLIGHTS.iter().enumerate() {
-            if def.tag.is_empty() || emitted_tags.contains(def.tag) {
-                continue; // Skip categories like "none" that have no tag, or already emitted tags
-            }
+        if style.modifiers.bold {
+            writeln!(
+                css,
+                "  --arb-{}-{}-weight: bold;",
+                def.tag,
+                variant
+            )
+            .unwrap();
+        }
 
-            // Use own style, or fall back to parent style
-            let style = if !self.styles[i].is_empty() {
-                &self.styles[i]
-            } else if !def.parent_tag.is_empty() {
-                // Look up parent style
-                tag_to_style
-                    .get(def.parent_tag)
-                    .copied()
-                    .unwrap_or(&self.styles[i])
-            } else {
-                continue; // No style and no parent
-            };
+        if style.modifiers.italic {
+            writeln!(
+                css,
+                "  --arb-{}-{}-style: italic;",
+                def.tag,
+                variant
+            )
+            .unwrap();
+        }
 
-            if style.is_empty() {
-                continue;
-            }
-
-            emitted_tags.insert(def.tag);
-
-            write!(css, "  a-{} {{", def.tag).unwrap();
-
-            if let Some(fg) = &style.fg {
-                write!(css, " color: {};", fg.to_hex()).unwrap();
-            }
-            if let Some(bg) = &style.bg {
-                write!(css, " background: {};", bg.to_hex()).unwrap();
-            }
-
+        if style.modifiers.underline || style.modifiers.strikethrough {
             let mut decorations = Vec::new();
             if style.modifiers.underline {
                 decorations.push("underline");
@@ -418,24 +394,21 @@ impl Theme {
             if style.modifiers.strikethrough {
                 decorations.push("line-through");
             }
-            if !decorations.is_empty() {
-                write!(css, " text-decoration: {};", decorations.join(" ")).unwrap();
-            }
 
-            if style.modifiers.bold {
-                write!(css, " font-weight: bold;").unwrap();
-            }
-            if style.modifiers.italic {
-                write!(css, " font-style: italic;").unwrap();
-            }
-
-            writeln!(css, " }}").unwrap();
+            writeln!(
+                css,
+                "  --arb-{}-{}-decoration: {};",
+                def.tag,
+                variant,
+                decorations.join(" ")
+            )
+            .unwrap();
         }
-
-        writeln!(css, "}}").unwrap();
-
-        css
     }
+
+    writeln!(css, "}}").unwrap();
+    css
+}
 
     /// Generate ANSI escape sequence for a style.
     pub fn ansi_style(&self, index: usize) -> String {
@@ -578,6 +551,77 @@ impl Theme {
 
     /// ANSI reset sequence.
     pub const ANSI_RESET: &'static str = "\x1b[0m";
+}
+
+pub fn generate_base_css() -> String {
+    use crate::highlights::HIGHLIGHTS;
+    use std::collections::HashSet;
+
+    let mut css = String::new();
+
+    // Collect unique tags once
+    let mut tags = Vec::new();
+    let mut seen = HashSet::new();
+    for def in HIGHLIGHTS.iter() {
+        if !def.tag.is_empty() && seen.insert(def.tag) {
+            tags.push(def.tag);
+        }
+    }
+
+    // Emit one variant block
+    fn emit_variant(
+        css: &mut String,
+        tags: &[&str],
+        variant: &str,
+        indent: &str,
+    ) {
+        use std::fmt::Write;
+
+        // Per-tag variable bindings
+        for tag in tags {
+            let _ = writeln!(
+                css,
+                "{indent}:where(a-{tag}){{\
+                 --arb-fg:var(--arb-{tag}-{variant});\
+                 --arb-bg:var(--arb-{tag}-{variant}-bg);\
+                 --arb-weight:var(--arb-{tag}-{variant}-weight);\
+                 --arb-style:var(--arb-{tag}-{variant}-style);\
+                 --arb-decoration:var(--arb-{tag}-{variant}-decoration);\
+                 }}",
+            );
+        }
+
+        // Shared rule using :where(:is(...))
+        let selector = tags
+            .iter()
+            .map(|t| format!("a-{t}"))
+            .collect::<Vec<_>>()
+            .join(",");
+
+        let _ = writeln!(
+            css,
+            "{indent}:where(:is({selector})){{\
+             color:var(--arb-fg);\
+             background:var(--arb-bg,transparent);\
+             font-weight:var(--arb-weight,normal);\
+             font-style:var(--arb-style,normal);\
+             text-decoration:var(--arb-decoration,none);\
+             }}",
+        );
+    }
+
+    // Default: light
+    emit_variant(&mut css, &tags, "light", "");
+
+    // System preference: dark
+    let _ = writeln!(
+        css,
+        "@media(prefers-color-scheme:dark){{"
+    );
+    emit_variant(&mut css, &tags, "dark", "  ");
+    let _ = writeln!(css, "}}");
+
+    css
 }
 
 /// Parse a style value from TOML (either string or table).
