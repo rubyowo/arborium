@@ -30,8 +30,8 @@ node_modules/
 # and README.md generated from crate metadata
 crates/arborium-sysroot/Cargo.toml
 crates/arborium-sysroot/README.md
-crates/arborium-theme/Cargo.toml
-crates/arborium-theme/README.md
+# crates/arborium-theme/Cargo.toml
+# crates/arborium-theme/README.md
 crates/arborium-highlight/Cargo.toml
 crates/arborium-highlight/README.md
 crates/arborium-tree-sitter/Cargo.toml
@@ -75,7 +75,7 @@ crates/arborium/src/lib.rs
 crates/arborium/src/store.rs
 
 # Generated theme code
-crates/arborium-theme/src/builtin_generated.rs
+# crates/arborium-theme/src/builtin_generated.rs
 
 # Generated demo/plugin manifests
 demo/index.html
