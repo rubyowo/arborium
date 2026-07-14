@@ -250,8 +250,9 @@ pub fn plan_generate(
         return Ok(PlanSet::new());
     }
 
+    // NOTE(arborium-theme): This repository is ONLY for arborium-theme so we do not need to validate the grammars
     // 3. Validate all grammars using prepared structures
-    validate_all_grammars(&prepared)?;
+    // validate_all_grammars(&prepared)?;
 
     // 4. Generate all grammars using same prepared structures
     let generation_results =
@@ -1199,15 +1200,16 @@ fn generate_all_grammars(
         pb.inc(1);
     };
 
+    // NOTE(arborium-theme): This repository is ONLY for arborium-theme so we do not need to build the grammars
     // Always parallel, with configurable thread pool
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(jobs)
-        .build()
-        .expect("Failed to build thread pool");
+    // let pool = rayon::ThreadPoolBuilder::new()
+    //     .num_threads(jobs)
+    //     .build()
+    //     .expect("Failed to build thread pool");
 
-    pool.install(|| {
-        prepared.prepared_temps.par_iter().for_each(process_grammar);
-    });
+    // pool.install(|| {
+    //     prepared.prepared_temps.par_iter().for_each(process_grammar);
+    // });
 
     pb.finish_and_clear();
 

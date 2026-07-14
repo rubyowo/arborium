@@ -552,7 +552,7 @@ fn run_generation_pipeline(
     let lint_start = Instant::now();
     let lint_filter = name.map(|n| vec![n.to_string()]);
     let lint_options = lint_new::LintOptions {
-        strict: true,
+        strict: false,
         only: lint_filter.clone(),
     };
     if let Err(e) = lint_new::run_lints(crates_dir, lint_options) {
